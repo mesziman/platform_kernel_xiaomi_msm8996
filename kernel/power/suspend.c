@@ -43,6 +43,22 @@ static DECLARE_WAIT_QUEUE_HEAD(suspend_freeze_wait_head);
 enum freeze_state __read_mostly suspend_freeze_state;
 static DEFINE_SPINLOCK(suspend_freeze_lock);
 
+#ifdef CONFIG_SUSPEND_WATCHDOG
+static void suspend_watchdog_handler(unsigned long data);
+static DEFINE_TIMER(wd_timer, suspend_watchdog_handler, 0, 0);
+
+static void suspend_watchdog_handler(unsigned long data)
+{
+        struct task_struct *tsk = (struct task_struct *)data;
+
+        pr_err("**** suspend timeout ****\n");
+        show_stack(tsk, NULL);
+        panic("suspend timeout triggered panic\n");
+}
+
+enum freeze_state __read_mostly suspend_freeze_state;
+static DEFINE_SPINLOCK(suspend_freeze_lock);
+
 void freeze_set_ops(const struct platform_freeze_ops *ops)
 {
 	lock_system_sleep();
