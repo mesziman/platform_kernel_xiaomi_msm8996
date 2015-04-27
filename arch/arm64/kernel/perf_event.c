@@ -1334,7 +1334,7 @@ arch_initcall(cpu_pmu_reset);
  * UNKNOWN at reset, the PMU must be explicitly reset to avoid reading
  * junk values out of them.
  */
-static int __cpuinit cpu_pmu_notify(struct notifier_block *b,
+static int cpu_pmu_notify(struct notifier_block *b,
                                     unsigned long action, void *hcpu)
 {
 	int cpu = (unsigned long)hcpu;
@@ -1363,51 +1363,9 @@ static int __cpuinit cpu_pmu_notify(struct notifier_block *b,
 	return NOTIFY_DONE;
 }
 
-#ifdef CONFIG_CPU_PM
-static void cpu_pm_pmu_setup(struct arm_pmu *armpmu, unsigned long cmd)
-{
-	struct pmu_hw_events *hw_events = cpu_pmu->get_hw_events();
-	struct perf_event *event;
-	int idx;
-
-	for (idx = 0; idx < armpmu->num_events; idx++) {
-		/*
-		 * If the counter is not used skip it, there is no
-		 * need of stopping/restarting it.
-		 */
-		if (!test_bit(idx, hw_events->used_mask))
-			continue;
-
-		event = hw_events->events[idx];
-
-		switch (cmd) {
-		case CPU_PM_ENTER:
-			/*
-			 * Stop and update the counter
-			 */
-			armpmu_stop(event, PERF_EF_UPDATE);
-			break;
-		case CPU_PM_EXIT:
-		case CPU_PM_ENTER_FAILED:
-			/*
-			 * Restore and enable the counter.
-			 * armpmu_start() indirectly calls
-			 *
-			 * perf_event_update_userpage()
-			 *
-			 * that requires RCU read locking to be functional,
-			 * wrap the call within RCU_NONIDLE to make the
-			 * RCU subsystem aware this cpu is not idle from
-			 * an RCU perspective for the armpmu_start() call
-			 * duration.
-			 */
-			RCU_NONIDLE(armpmu_start(event, PERF_EF_RELOAD));
-			break;
-		default:
-			break;
-		}
-	}
-}
+static struct notifier_block cpu_pmu_hotplug_notifier = {
+	.notifier_call = cpu_pmu_notify,
+};
 
 static int cpu_pm_pmu_notify(struct notifier_block *b, unsigned long cmd,
                              void *v)
