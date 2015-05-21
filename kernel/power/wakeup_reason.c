@@ -113,6 +113,7 @@ add_to_siblings(struct wakeup_irq_node *root, int irq)
 	return n;
 }
 
+#ifdef CONFIG_DEDUCE_WAKEUP_REASONS
 static struct wakeup_irq_node* add_child(struct wakeup_irq_node *root, int irq)
 {
 	if (!root->child) {
@@ -153,6 +154,7 @@ get_base_node(struct wakeup_irq_node *node, unsigned depth)
 
 	return node;
 }
+#endif /* CONFIG_DEDUCE_WAKEUP_REASONS */
 
 static const struct list_head* get_wakeup_reasons_nosync(void);
 
@@ -197,6 +199,7 @@ static bool walk_irq_node_tree(struct wakeup_irq_node *root,
 	return visit(root, cookie);
 }
 
+#ifdef CONFIG_DEDUCE_WAKEUP_REASONS
 static bool is_node_handled(struct wakeup_irq_node *n, void *_p)
 {
 	return n->handled;
@@ -206,6 +209,7 @@ static bool base_irq_nodes_done(void)
 {
 	return walk_irq_node_tree(base_irq_nodes, is_node_handled, NULL);
 }
+#endif
 
 struct buf_cookie {
 	char *buf;
@@ -311,7 +315,12 @@ void log_base_wakeup_reason(int irq)
 	 */
 	base_irq_nodes = add_to_siblings(base_irq_nodes, irq);
 	BUG_ON(!base_irq_nodes);
+#ifndef CONFIG_DEDUCE_WAKEUP_REASONS
+	base_irq_nodes->handled = true;
+#endif
 }
+
+#ifdef CONFIG_DEDUCE_WAKEUP_REASONS
 
 /* This function is called by generic_handle_irq, which may call itself
  * recursively.  This happens with interrupts disabled.  Using
@@ -331,7 +340,7 @@ void log_base_wakeup_reason(int irq)
 
  */
 
-struct wakeup_irq_node *
+static struct wakeup_irq_node *
 log_possible_wakeup_reason_start(int irq, struct irq_desc *desc, unsigned depth)
 {
 	BUG_ON(!irqs_disabled());
@@ -380,7 +389,7 @@ log_possible_wakeup_reason_start(int irq, struct irq_desc *desc, unsigned depth)
 	return cur_irq_tree;
 }
 
-void log_possible_wakeup_reason_complete(struct wakeup_irq_node *n,
+static void log_possible_wakeup_reason_complete(struct wakeup_irq_node *n,
 					unsigned depth,
 					bool handled)
 {
@@ -394,35 +403,6 @@ void log_possible_wakeup_reason_complete(struct wakeup_irq_node *n,
 			print_wakeup_sources();
 		}
 	}
-}
-
-bool log_possible_wakeup_reason(int irq,
-			struct irq_desc *desc,
-			bool (*handler)(unsigned int, struct irq_desc *))
-{
-	static DEFINE_PER_CPU(unsigned int, depth);
-
-	struct wakeup_irq_node *n;
-	bool handled;
-	unsigned d;
-
-	d = get_cpu_var(depth)++;
-	put_cpu_var(depth);
-
-	n = log_possible_wakeup_reason_start(irq, desc, d);
-
-	handled = handler(irq, desc);
-
-	d = --get_cpu_var(depth);
-	put_cpu_var(depth);
-
-	if (!handled && desc && desc->action)
-		pr_debug("%s: irq %d action %pF not handled\n", __func__,
-			irq, desc->action->handler);
-
-	log_possible_wakeup_reason_complete(n, d, handled);
-
-	return handled;
 }
 
 bool log_possible_wakeup_reason(int irq,
@@ -666,16 +646,10 @@ static int wakeup_reason_pm_event(struct notifier_block *notifier,
 		clear_wakeup_reasons();
 		break;
 	case PM_POST_SUSPEND:
-		/* log_wakeups should have been cleared by now. */
-		if (WARN_ON(logging_wakeup_reasons())) {
-			stop_logging_wakeup_reasons();
-			print_wakeup_sources();
-		}
 		/* monotonic time since boot */
 		curr_monotime = ktime_get();
 		/* monotonic time since boot including the time spent in suspend */
 		curr_stime = ktime_get_boottime();
-
 #ifdef CONFIG_DEDUCE_WAKEUP_REASONS
 		/* log_wakeups should have been cleared by now. */
 		if (WARN_ON(logging_wakeup_reasons())) {
