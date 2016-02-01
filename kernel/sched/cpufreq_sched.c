@@ -115,9 +115,11 @@ static int cpufreq_sched_thread(void *data)
     }
 
     do {
-	set_current_state(TASK_INTERRUPTIBLE);
 	new_request = gd->requested_freq;
 	if (new_request == last_request) {
+	    set_current_state(TASK_INTERRUPTIBLE);
+	    if (kthread_should_stop())
+		break;
 	    schedule();
 	} else {
 	    /*
@@ -131,24 +133,7 @@ static int cpufreq_sched_thread(void *data)
 	}
     } while (!kthread_should_stop());
 
-	do {
-		new_request = gd->requested_freq;
-		if (new_request == last_request) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule();
-		} else {
-			/*
-			 * if the frequency thread sleeps while waiting to be
-			 * unthrottled, start over to check for a newer request
-			 */
-			if (finish_last_request(gd))
-				continue;
-			last_request = new_request;
-			cpufreq_sched_try_driver_target(policy, new_request);
-		}
-	} while (!kthread_should_stop());
-
-	return 0;
+    return 0;
 }
 
 static void cpufreq_sched_irq_work(struct irq_work *irq_work)
@@ -273,6 +258,7 @@ static int cpufreq_sched_policy_init(struct cpufreq_policy *policy)
     pr_debug("%s: throttle threshold = %u [ns]\n",
 	  __func__, gd->throttle_nsec);
 
+    policy->governor_data = gd;
     if (cpufreq_driver_is_slow()) {
 	cpufreq_driver_slow = true;
 	gd->task = kthread_create(cpufreq_sched_thread, policy,
@@ -289,12 +275,12 @@ static int cpufreq_sched_policy_init(struct cpufreq_policy *policy)
 	init_irq_work(&gd->irq_work, cpufreq_sched_irq_work);
     }
 
-    policy->governor_data = gd;
     set_sched_freq();
 
     return 0;
 
 err:
+    policy->governor_data = NULL;
     kfree(gd);
     return -ENOMEM;
 }
