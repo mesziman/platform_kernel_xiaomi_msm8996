@@ -1694,9 +1694,11 @@ static inline
 int select_task_rq(struct task_struct *p, int cpu, int sd_flags, int wake_flags,
 		   int sibling_count_hint)
 {
-	if (p->nr_cpus_allowed > 1)
-		cpu = p->sched_class->select_task_rq(p, cpu, sd_flags, wake_flags,
-						     sibling_count_hint);
+
+	if (tsk_nr_cpus_allowed(p) > 1)
+		cpu = p->sched_class->select_task_rq(p, cpu, sd_flags, wake_flags, sibling_count_hint);
+	else
+		cpu = cpumask_any(tsk_cpus_allowed(p));
 
 	/*
 	 * In order not to call set_task_cpu() on a blocking task we need
