@@ -79,8 +79,11 @@ static const int bfq_back_max = 16 * 1024;
 /* Penalty of a backwards seek, in number of sectors. */
 static const int bfq_back_penalty = 2;
 
-/* Idling period duration, in jiffies. */
-static int bfq_slice_idle = HZ / 125;
+/* Idling period duration, in ns. */
+static u32 bfq_slice_idle = 0;
+
+/* Minimum number of assigned budgets for which stats are safe to compute. */
+// static const int bfq_stats_min_budgets = 194;
 
 /* Default maximum budget values, in sectors and number of requests. */
 static const int bfq_default_max_budget = 16 * 1024;
