@@ -3275,7 +3275,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 * Update the normalized vruntime before updating min_vruntime
 	 * through calling update_curr().
 	 */
-	if (!(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_WAKING))
+	if (!(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_MIGRATED))
 		se->vruntime += cfs_rq->min_vruntime;
 
 	/*
