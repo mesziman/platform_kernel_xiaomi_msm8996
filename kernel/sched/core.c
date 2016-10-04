@@ -908,17 +908,22 @@ static void set_load_weight(struct task_struct *p)
 
 static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
-	update_rq_clock(rq);
+		update_rq_clock(rq);
+
 	if (!(flags & ENQUEUE_RESTORE))
 		sched_info_queued(rq, p);
+
 	p->sched_class->enqueue_task(rq, p, flags);
 }
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 {
-	update_rq_clock(rq);
+	if (!(flags & DEQUEUE_NOCLOCK))
+		update_rq_clock(rq);
+
 	if (!(flags & DEQUEUE_SAVE))
 		sched_info_dequeued(rq, p);
+
 	p->sched_class->dequeue_task(rq, p, flags);
 }
 
@@ -1817,7 +1822,7 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
 		rq->nr_uninterruptible--;
 #endif
 
-	ttwu_activate(rq, p, ENQUEUE_WAKEUP | ENQUEUE_WAKING);
+	ttwu_activate(rq, p, ENQUEUE_WAKEUP);
 	ttwu_do_wakeup(rq, p, wake_flags, cookie);
 }
 
