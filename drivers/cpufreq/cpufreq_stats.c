@@ -40,6 +40,17 @@ struct uid_entry {
 	struct hlist_node hash;
 };
 
+static DEFINE_RT_MUTEX(uid_lock); /* uid_hash_table */
+
+struct uid_entry {
+	uid_t uid;
+	unsigned int dead_max_states;
+	unsigned int alive_max_states;
+	u64 *dead_time_in_state;
+	u64 *alive_time_in_state;
+	struct hlist_node hash;
+};
+
 struct cpufreq_stats {
 	unsigned int cpu;
 	unsigned int total_trans;
@@ -323,8 +334,7 @@ void acct_update_power(struct task_struct *task, cputime_t cputime) {
 	unsigned int cpu_num, curr;
 	int cpu_freq_i;
 	int all_freq_i;
-	u64 last_cputime;
-	atomic64_t *time_in_state;
+	unsigned long flags;
 
 	if (!task)
 		return;
@@ -335,18 +345,20 @@ void acct_update_power(struct task_struct *task, cputime_t cputime) {
 		return;
 
 	all_freq_i = atomic_read(&stats->all_freq_i);
-	time_in_state = READ_ONCE(task->time_in_state);
 
 	/* This function is called from a different context
 	 * Interruptions in between reads/assignements are ok
 	 */
-	if (all_freq_table && cpufreq_all_freq_init && time_in_state &&
+	if (all_freq_table && cpufreq_all_freq_init &&
 		!(task->flags & PF_EXITING) &&
 		all_freq_i != -1 && all_freq_i < READ_ONCE(task->max_states)) {
-		last_cputime =
-			atomic_read(&time_in_state[all_freq_i]);
-		atomic_set(&time_in_state[all_freq_i],
-			last_cputime + cputime);
+
+		spin_lock_irqsave(&task_time_in_state_lock, flags);
+		if (task->time_in_state) {
+			atomic64_add(cputime,
+				&task->time_in_state[all_freq_i]);
+		}
+		spin_unlock_irqrestore(&task_time_in_state_lock, flags);
 	}
 
 	powerstats = per_cpu(cpufreq_power_stats, cpu_num);
