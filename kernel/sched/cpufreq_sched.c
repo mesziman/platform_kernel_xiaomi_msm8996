@@ -365,11 +365,14 @@ static int cpufreq_sched_policy_exit(struct cpufreq_policy *policy)
 {
     struct gov_data *gd = policy->governor_data;
 
-    clear_sched_freq();
-    if (cpufreq_driver_slow) {
-	kthread_stop(gd->task);
-	put_task_struct(gd->task);
-    }
+	if (!gd)
+		return -EBUSY;
+
+	clear_sched_freq();
+	if (cpufreq_driver_slow) {
+		kthread_stop(gd->task);
+		put_task_struct(gd->task);
+	}
 
 	sysfs_remove_group(get_governor_parent_kobj(policy), get_sysfs_attr());
 
