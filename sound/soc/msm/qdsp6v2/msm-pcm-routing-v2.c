@@ -38,6 +38,9 @@
 #include <sound/hwdep.h>
 #include <sound/q6adm-v2.h>
 #include <sound/apr_audio-v2.h>
+/* ELUS Start */
+#include "msm-elliptic.h"
+/* ELUS Ends  */
 
 #include "msm-pcm-routing-v2.h"
 #include "msm-pcm-routing-devdep.h"
@@ -70,7 +73,10 @@ static const DECLARE_TLV_DB_LINEAR(afe_mi2s_vol_gain, 0, INT_RX_VOL_MAX_STEPS);
 static struct mutex routing_lock;
 
 static struct cal_type_data *cal_data[MAX_ROUTING_CAL_TYPES];
+
+/* ELUS Start */
 struct mutex *ptr_routing_lock = &routing_lock;
+/* ELUS Ends  */
 
 static int fm_switch_enable;
 static int hfp_switch_enable;
@@ -16262,6 +16268,9 @@ static int msm_routing_probe(struct snd_soc_platform *platform)
 					ARRAY_SIZE(aptx_dec_license_controls));
 	snd_soc_add_platform_controls(platform, stereo_channel_reverse_control,
 				ARRAY_SIZE(stereo_channel_reverse_control));
+/* ELUS Starts */
+	elliptic_add_platform_controls(platform);
+/* ELUS Ends  */
 	return 0;
 }
 
