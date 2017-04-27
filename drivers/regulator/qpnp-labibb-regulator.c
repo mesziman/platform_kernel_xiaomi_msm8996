@@ -1,4 +1,5 @@
 /* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -97,6 +98,12 @@
 
 /* REG_LAB_ENABLE_CTL */
 #define LAB_ENABLE_CTL_EN		BIT(7)
+
+/* REG_LAB_ENABLE_SOFT_START */
+#define LAB_ENABLE_SOFT_START		BIT(5)
+
+/* REG_LAB_SEL_PS_TABLE_1 */
+#define LAB_SEL_PS_TABLE_1		BIT(2)
 
 /* REG_LAB_PD_CTL */
 #define LAB_PD_CTL_STRONG_PULL		BIT(0)
@@ -1109,6 +1116,8 @@ static int qpnp_ibb_set_default_voltage_v2(struct qpnp_labibb *labibb,
 	}
 
 	labibb->ibb_vreg.curr_volt = val * labibb->ibb_vreg.step_size;
+
+	val |= LAB_ENABLE_SOFT_START | LAB_SEL_PS_TABLE_1;
 
 	rc = qpnp_labibb_write(labibb, labibb->ibb_base +
 				REG_IBB_DEFAULT_VOLTAGE, &val, 1);
