@@ -937,6 +937,11 @@ config MSM_CACHE_M4M_ERP64
          registers. These register dumps can be used as useful information
          to find out possible hardware problems.
 
+config SERIAL_NUM
+	bool "Enable Serial Number Proc Interface"
+	help
+	  Provide a interface for reading CPU serial number
+
 config MSM_CACHE_M4M_ERP64_PANIC_ON_CE
        bool "Panic on correctable cache/M4M errors"
        help
