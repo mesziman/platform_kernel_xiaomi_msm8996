@@ -669,11 +669,14 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 		else
 			expires.tv64 = KTIME_MAX;
 
-		/* Skip reprogram of event if its not changed */
-		if (ts->tick_stopped && ktime_equal(expires, dev->next_event))
-			goto out;
-
 		ret = expires;
+		/* Skip reprogram of event if its not changed */
+		if (ts->tick_stopped) {
+			if (hrtimer_active(&ts->sched_timer))
+			    WARN_ON_ONCE(hrtimer_get_expires(&ts->sched_timer) < dev->next_event);
+			if (expires == dev->next_event)
+			    goto out;
+	        }
 
 		/*
 		 * nohz_stop_sched_tick can be called several times before
