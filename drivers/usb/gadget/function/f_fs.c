@@ -1004,7 +1004,7 @@ error_lock:
 error:
 	if (data_len > epfile->buf_len || io_data->aio)
 		kfree(data);
-	if (ret < 0)
+	if (ret < 0 && ret != -ERESTARTSYS)
 		pr_err_ratelimited("Error: returning %zd value\n", ret);
 	return ret;
 }
