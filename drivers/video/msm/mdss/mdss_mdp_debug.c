@@ -1075,7 +1075,7 @@ static void __dump_pipe(struct seq_file *s, struct mdss_mdp_pipe *pipe)
 			pipe->mixer_stage, pipe->alpha,
 			pipe->transp, pipe->blend_op);
 	if (pipe->multirect.max_rects > 1) {
-		const char const *fmodes[] = {
+		const char *fmodes[] = {
 			[MDSS_MDP_PIPE_MULTIRECT_PARALLEL]	= "parallel",
 			[MDSS_MDP_PIPE_MULTIRECT_SERIAL]	= "serial",
 			[MDSS_MDP_PIPE_MULTIRECT_NONE]		= "single",
