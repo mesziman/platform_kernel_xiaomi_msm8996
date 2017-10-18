@@ -132,13 +132,6 @@
 
 static int cpe_debug_mode;
 
-struct sound_control {
-	struct snd_soc_codec *snd_control_codec;
- 	int default_headphones_value;
-	int default_speaker_value;
-	int default_mic_value;
-} soundcontrol;
-
 #define TASHA_MAX_MICBIAS 4
 #define DAPM_MICBIAS1_STANDALONE "MIC BIAS1 Standalone"
 #define DAPM_MICBIAS2_STANDALONE "MIC BIAS2 Standalone"
