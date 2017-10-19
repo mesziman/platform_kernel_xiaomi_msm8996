@@ -420,7 +420,6 @@ LDFLAGS_MODULE	+= $(call ld-option, --no-fix-cortex-a53-835769)
 LDFLAGS_MODULE	+= $(call ld-option, --no-fix-cortex-a53-843419)
 LDFLAGS		+= $(call ld-option, --no-fix-cortex-a53-835769)
 LDFLAGS		+= $(call ld-option, --no-fix-cortex-a53-843419)
->>>>>>> 4eb28f7b... Makefile: adapt to GCC 7.2
 
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
