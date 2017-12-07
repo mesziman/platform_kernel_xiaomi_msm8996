@@ -6392,14 +6392,15 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 			 */
 
 			/* Favor CPUs with maximum spare capacity */
-			if ((capacity_orig - new_util) < target_max_spare_cap)
+			if ((capacity_orig - min_capped_util) <
+				target_max_spare_cap)
 				continue;
 
 			/* Favor CPUs with maximum free utilization */
 			if ((capacity_orig - cpu_util(i)) < target_max_free_util)
 				continue;
 
-			target_max_spare_cap = capacity_orig - new_util;
+			target_max_spare_cap = capacity_orig - min_capped_util;
 			target_max_free_util = capacity_orig - cpu_util(i);
 			target_capacity = capacity_orig;
 			target_cpu = i;
