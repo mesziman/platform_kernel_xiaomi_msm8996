@@ -658,28 +658,28 @@ void binder_alloc_free_buf(struct binder_alloc *alloc,
 int binder_alloc_mmap_handler(struct binder_alloc *alloc,
 	          struct vm_area_struct *vma)
 {
-    int ret;
-    struct vm_struct *area;
-    const char *failure_string;
-    struct binder_buffer *buffer;
+	int ret;
+	struct vm_struct *area;
+	const char *failure_string;
+	struct binder_buffer *buffer;
 
-    mutex_lock(&binder_alloc_mmap_lock);
-    if (alloc->buffer) {
-	ret = -EBUSY;
-	failure_string = "already mapped";
-	goto err_already_mapped;
-    }
+	mutex_lock(&binder_alloc_mmap_lock);
+	if (alloc->buffer) {
+		ret = -EBUSY;
+		failure_string = "already mapped";
+		goto err_already_mapped;
+	}
 
-    area = get_vm_area(vma->vm_end - vma->vm_start, VM_IOREMAP);
-    if (area == NULL) {
-	ret = -ENOMEM;
-	failure_string = "get_vm_area";
-	goto err_get_vm_area_failed;
-    }
-    alloc->buffer = area->addr;
-    alloc->user_buffer_offset =
-	vma->vm_start - (uintptr_t)alloc->buffer;
-    mutex_unlock(&binder_alloc_mmap_lock);
+	area = get_vm_area(vma->vm_end - vma->vm_start, VM_ALLOC);
+	if (area == NULL) {
+		ret = -ENOMEM;
+		failure_string = "get_vm_area";
+		goto err_get_vm_area_failed;
+	}
+	alloc->buffer = area->addr;
+	alloc->user_buffer_offset =
+		vma->vm_start - (uintptr_t)alloc->buffer;
+	mutex_unlock(&binder_alloc_mmap_lock);
 
 #ifdef CONFIG_CPU_CACHE_VIPT
     if (cache_is_vipt_aliasing()) {
