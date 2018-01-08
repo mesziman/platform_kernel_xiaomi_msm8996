@@ -132,6 +132,12 @@ int cpudl_find(struct cpudl *cp, struct task_struct *p,
 	int best_cpu = -1;
 	const struct sched_dl_entity *dl_se = &p->dl;
 
+	/*
+	 * The heap tree is empty for now, just return.
+	 */
+	if (best_cpu == -1)
+		return 0;
+
 	if (later_mask &&
 	    cpumask_and(later_mask, cp->free_cpus, &p->cpus_allowed)) {
 		best_cpu = cpumask_any(later_mask);
@@ -266,8 +272,10 @@ int cpudl_init(struct cpudl *cp)
 		return -ENOMEM;
 	}
 
-	for_each_possible_cpu(i)
+	for_each_possible_cpu(i) {
+		cp->elements[i].cpu = -1;
 		cp->elements[i].idx = IDX_INVALID;
+	}
 
 	return 0;
 }
