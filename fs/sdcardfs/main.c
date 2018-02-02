@@ -340,14 +340,12 @@ static int sdcardfs_read_super(struct vfsmount *mnt, struct super_block *sb,
 	sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
 	mutex_lock(&sdcardfs_super_list_lock);
 	if (sb_info->options.multiuser) {
-		setup_derived_state(d_inode(sb->s_root), PERM_PRE_ROOT,
-				sb_info->options.fs_user_id, AID_ROOT,
-				false, SDCARDFS_I(d_inode(sb->s_root))->data);
+		setup_derived_state(sb->s_root->d_inode, PERM_PRE_ROOT,
+				sb_info->options.fs_user_id, AID_ROOT);
 		snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
 	} else {
-		setup_derived_state(d_inode(sb->s_root), PERM_ROOT,
-				sb_info->options.fs_user_id, AID_ROOT,
-				false, SDCARDFS_I(d_inode(sb->s_root))->data);
+		setup_derived_state(sb->s_root->d_inode, PERM_ROOT,
+				sb_info->options.fs_user_id, AID_ROOT);
 		snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
 	}
 	fixup_tmp_permissions(d_inode(sb->s_root));
