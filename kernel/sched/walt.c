@@ -68,22 +68,13 @@ static unsigned int max_possible_capacity = 1024;
 /* Mask of all CPUs that have  max_possible_capacity */
 static cpumask_t mpc_mask = CPU_MASK_ALL;
 
-/* Window size (in ns) */
-__read_mostly unsigned int walt_ravg_window = 20000000;
-
-/* Min window size (in ns) = 10ms */
-#ifdef CONFIG_HZ_300
 /*
- * Tick interval becomes to 3333333 due to
- * rounding error when HZ=300.
+ * Window size (in ns). Adjust for the tick size so that the window
+ * rollover occurs just before the tick boundary.
  */
-#define MIN_SCHED_RAVG_WINDOW (3333333 * 6)
-#else
-#define MIN_SCHED_RAVG_WINDOW 10000000
-#endif
-
-/* Max window size (in ns) = 1s */
-#define MAX_SCHED_RAVG_WINDOW 1000000000
+__read_mostly unsigned int walt_ravg_window = 20000000 / TICK_NSEC * TICK_NSEC;
+#define MIN_SCHED_RAVG_WINDOW (10000000 / TICK_NSEC * TICK_NSEC)
+#define MAX_SCHED_RAVG_WINDOW (1000000000 / TICK_NSEC * TICK_NSEC)
 
 static unsigned int sync_cpu;
 static ktime_t ktime_last;
@@ -177,6 +168,9 @@ static int __init set_walt_ravg_window(char *str)
 {
     get_option(&str, &walt_ravg_window);
 
+    /* Adjust for CONFIG_HZ */
+    walt_ravg_window = walt_ravg_window / TICK_NSEC * TICK_NSEC;
+
     walt_disabled = (walt_ravg_window < MIN_SCHED_RAVG_WINDOW ||
 		walt_ravg_window > MAX_SCHED_RAVG_WINDOW);
     return 0;
@@ -190,15 +184,15 @@ update_window_start(struct rq *rq, u64 wallclock)
     s64 delta;
     int nr_windows;
 
-	delta = wallclock - rq->window_start;
-	/* If the MPM global timer is cleared, set delta as 0 to avoid kernel BUG happening */
-	if (delta < 0) {
-		delta = 0;
-		WARN_ONCE(1, "WALT wallclock appears to have gone backwards or reset\n");
-	}
+    delta = wallclock - rq->window_start;
+    /* If the MPM global timer is cleared, set delta as 0 to avoid kernel BUG happening */
+    if (delta < 0) {
+	delta = 0;
+	WARN_ONCE(1, "WALT wallclock appears to have gone backwards or reset\n");
+    }
 
-	if (delta < walt_ravg_window)
-		return;
+    if (delta < walt_ravg_window)
+	return;
 
     nr_windows = div64_u64(delta, walt_ravg_window);
     rq->window_start += (u64)nr_windows * (u64)walt_ravg_window;
@@ -233,68 +227,68 @@ static int cpu_is_waiting_on_io(struct rq *rq)
 }
 
 void walt_account_irqtime(int cpu, struct task_struct *curr,
-				 u64 delta, u64 wallclock)
+		 u64 delta, u64 wallclock)
 {
-	struct rq *rq = cpu_rq(cpu);
-	unsigned long flags, nr_windows;
-	u64 cur_jiffies_ts;
+    struct rq *rq = cpu_rq(cpu);
+    unsigned long flags, nr_windows;
+    u64 cur_jiffies_ts;
 
-	raw_spin_lock_irqsave(&rq->lock, flags);
+    raw_spin_lock_irqsave(&rq->lock, flags);
 
-	/*
-	 * cputime (wallclock) uses sched_clock so use the same here for
-	 * consistency.
-	 */
-	delta += sched_clock() - wallclock;
-	cur_jiffies_ts = get_jiffies_64();
+    /*
+     * cputime (wallclock) uses sched_clock so use the same here for
+     * consistency.
+     */
+    delta += sched_clock() - wallclock;
+    cur_jiffies_ts = get_jiffies_64();
 
-	if (is_idle_task(curr))
-		walt_update_task_ravg(curr, rq, IRQ_UPDATE, walt_ktime_clock(),
-				 delta);
+    if (is_idle_task(curr))
+	walt_update_task_ravg(curr, rq, IRQ_UPDATE, walt_ktime_clock(),
+		 delta);
 
-	nr_windows = cur_jiffies_ts - rq->irqload_ts;
+    nr_windows = cur_jiffies_ts - rq->irqload_ts;
 
-	if (nr_windows) {
-		if (nr_windows < 10) {
-			/* Decay CPU's irqload by 3/4 for each window. */
-			rq->avg_irqload *= (3 * nr_windows);
-			rq->avg_irqload = div64_u64(rq->avg_irqload,
-						    4 * nr_windows);
-		} else {
-			rq->avg_irqload = 0;
-		}
-		rq->avg_irqload += rq->cur_irqload;
-		rq->cur_irqload = 0;
+    if (nr_windows) {
+	if (nr_windows < 10) {
+	    /* Decay CPU's irqload by 3/4 for each window. */
+	    rq->avg_irqload *= (3 * nr_windows);
+	    rq->avg_irqload = div64_u64(rq->avg_irqload,
+			    4 * nr_windows);
+	} else {
+	    rq->avg_irqload = 0;
 	}
+	rq->avg_irqload += rq->cur_irqload;
+	rq->cur_irqload = 0;
+    }
 
-	rq->cur_irqload += delta;
-	rq->irqload_ts = cur_jiffies_ts;
-	raw_spin_unlock_irqrestore(&rq->lock, flags);
+    rq->cur_irqload += delta;
+    rq->irqload_ts = cur_jiffies_ts;
+    raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 
 
 #define WALT_HIGH_IRQ_TIMEOUT 3
 
 u64 walt_irqload(int cpu) {
-	struct rq *rq = cpu_rq(cpu);
-	s64 delta;
-	delta = get_jiffies_64() - rq->irqload_ts;
+    struct rq *rq = cpu_rq(cpu);
+    s64 delta;
+    delta = get_jiffies_64() - rq->irqload_ts;
 
         /*
-	 * Current context can be preempted by irq and rq->irqload_ts can be
-	 * updated by irq context so that delta can be negative.
-	 * But this is okay and we can safely return as this means there
-	 * was recent irq occurrence.
-	 */
+     * Current context can be preempted by irq and rq->irqload_ts can be
+     * updated by irq context so that delta can be negative.
+     * But this is okay and we can safely return as this means there
+     * was recent irq occurrence.
+     */
 
         if (delta < WALT_HIGH_IRQ_TIMEOUT)
-		return rq->avg_irqload;
+	return rq->avg_irqload;
         else
-		return 0;
+	return 0;
 }
 
 int walt_cpu_high_irqload(int cpu) {
-	return walt_irqload(cpu) >= sysctl_sched_walt_cpu_high_irqload;
+    return walt_irqload(cpu) >= sysctl_sched_walt_cpu_high_irqload;
 }
 
 static int account_busy_for_cpu_time(struct rq *rq, struct task_struct *p,
@@ -793,8 +787,8 @@ void walt_mark_task_starting(struct task_struct *p)
 	return;
     }
 
-	wallclock = walt_ktime_clock();
-	p->ravg.mark_start = wallclock;
+    wallclock = walt_ktime_clock();
+    p->ravg.mark_start = wallclock;
 }
 
 void walt_set_window_start(struct rq *rq)
@@ -802,21 +796,11 @@ void walt_set_window_start(struct rq *rq)
     int cpu = cpu_of(rq);
     struct rq *sync_rq = cpu_rq(sync_cpu);
 
-	if (rq->window_start)
-		return;
-
-	if (cpu == sync_cpu) {
-		rq->window_start = walt_ktime_clock();
-	} else {
-		raw_spin_unlock(&rq->lock);
-		double_rq_lock(rq, sync_rq);
-		rq->window_start = cpu_rq(sync_cpu)->window_start;
-		rq->curr_runnable_sum = rq->prev_runnable_sum = 0;
-		raw_spin_unlock(&sync_rq->lock);
-	}
+    if (rq->window_start)
+	return;
 
     if (cpu == sync_cpu) {
-	rq->window_start = ktime_get_ns();
+	rq->window_start = walt_ktime_clock();
     } else {
 	raw_spin_unlock(&rq->lock);
 	double_rq_lock(rq, sync_rq);
@@ -850,7 +834,7 @@ void walt_fixup_busy_time(struct task_struct *p, int new_cpu)
     if (p->state == TASK_WAKING)
 	double_rq_lock(src_rq, dest_rq);
 
-	wallclock = walt_ktime_clock();
+    wallclock = walt_ktime_clock();
 
     walt_update_task_ravg(task_rq(p)->curr, task_rq(p),
 	    TASK_UPDATE, wallclock, 0);
@@ -869,14 +853,14 @@ void walt_fixup_busy_time(struct task_struct *p, int new_cpu)
 	dest_rq->prev_runnable_sum += p->ravg.prev_window;
     }
 
-	if ((s64)src_rq->prev_runnable_sum < 0) {
-		src_rq->prev_runnable_sum = 0;
-		WARN_ON(1);
-	}
-	if ((s64)src_rq->curr_runnable_sum < 0) {
-		src_rq->curr_runnable_sum = 0;
-		WARN_ON(1);
-	}
+    if ((s64)src_rq->prev_runnable_sum < 0) {
+	src_rq->prev_runnable_sum = 0;
+	WARN_ON(1);
+    }
+    if ((s64)src_rq->curr_runnable_sum < 0) {
+	src_rq->curr_runnable_sum = 0;
+	WARN_ON(1);
+    }
 
     trace_walt_migration_update_sum(src_rq, p);
     trace_walt_migration_update_sum(dest_rq, p);
@@ -958,72 +942,17 @@ static int compute_load_scale_factor(int cpu)
 static int cpufreq_notifier_policy(struct notifier_block *nb,
 	unsigned long val, void *data)
 {
-	struct cpufreq_policy *policy = (struct cpufreq_policy *)data;
-	int i, update_max = 0;
-	u64 highest_mpc = 0, highest_mplsf = 0;
-	const struct cpumask *cpus = policy->related_cpus;
-	unsigned int orig_min_max_freq = min_max_freq;
-	unsigned int orig_max_possible_freq = max_possible_freq;
-	/* Initialized to policy->max in case policy->related_cpus is empty! */
-	unsigned int orig_max_freq = policy->max;
+    struct cpufreq_policy *policy = (struct cpufreq_policy *)data;
+    int i, update_max = 0;
+    u64 highest_mpc = 0, highest_mplsf = 0;
+    const struct cpumask *cpus = policy->related_cpus;
+    unsigned int orig_min_max_freq = min_max_freq;
+    unsigned int orig_max_possible_freq = max_possible_freq;
+    /* Initialized to policy->max in case policy->related_cpus is empty! */
+    unsigned int orig_max_freq = policy->max;
 
-	if (val != CPUFREQ_NOTIFY)
-		return 0;
-
-	for_each_cpu(i, policy->related_cpus) {
-		cpumask_copy(&cpu_rq(i)->freq_domain_cpumask,
-			     policy->related_cpus);
-		orig_max_freq = cpu_rq(i)->max_freq;
-		cpu_rq(i)->min_freq = policy->min;
-		cpu_rq(i)->max_freq = policy->max;
-		cpu_rq(i)->cur_freq = policy->cur;
-		cpu_rq(i)->max_possible_freq = policy->cpuinfo.max_freq;
-	}
-
-	max_possible_freq = max(max_possible_freq, policy->cpuinfo.max_freq);
-	if (min_max_freq == 1)
-		min_max_freq = UINT_MAX;
-	min_max_freq = min(min_max_freq, policy->cpuinfo.max_freq);
-	BUG_ON(!min_max_freq);
-	BUG_ON(!policy->max);
-
-	/* Changes to policy other than max_freq don't require any updates */
-	if (orig_max_freq == policy->max)
-		return 0;
-
-	/*
-	 * A changed min_max_freq or max_possible_freq (possible during bootup)
-	 * needs to trigger re-computation of load_scale_factor and capacity for
-	 * all possible cpus (even those offline). It also needs to trigger
-	 * re-computation of nr_big_task count on all online cpus.
-	 *
-	 * A changed rq->max_freq otoh needs to trigger re-computation of
-	 * load_scale_factor and capacity for just the cluster of cpus involved.
-	 * Since small task definition depends on max_load_scale_factor, a
-	 * changed load_scale_factor of one cluster could influence
-	 * classification of tasks in another cluster. Hence a changed
-	 * rq->max_freq will need to trigger re-computation of nr_big_task
-	 * count on all online cpus.
-	 *
-	 * While it should be sufficient for nr_big_tasks to be
-	 * re-computed for only online cpus, we have inadequate context
-	 * information here (in policy notifier) with regard to hotplug-safety
-	 * context in which notification is issued. As a result, we can't use
-	 * get_online_cpus() here, as it can lead to deadlock. Until cpufreq is
-	 * fixed up to issue notification always in hotplug-safe context,
-	 * re-compute nr_big_task for all possible cpus.
-	 */
-
-	if (orig_min_max_freq != min_max_freq ||
-		orig_max_possible_freq != max_possible_freq) {
-			cpus = cpu_possible_mask;
-			update_max = 1;
-	}
-
-    if (val == CPUFREQ_REMOVE_POLICY || val == CPUFREQ_CREATE_POLICY) {
-	update_min_max_capacity();
+    if (val != CPUFREQ_NOTIFY)
 	return 0;
-    }
 
     for_each_cpu(i, policy->related_cpus) {
 	cpumask_copy(&cpu_rq(i)->freq_domain_cpumask,
@@ -1114,7 +1043,7 @@ static int cpufreq_notifier_policy(struct notifier_block *nb,
 	max_load_scale_factor = highest_mplsf;
     }
 
-	return 0;
+    return 0;
 }
 
 static int cpufreq_notifier_trans(struct notifier_block *nb,
@@ -1136,12 +1065,12 @@ static int cpufreq_notifier_trans(struct notifier_block *nb,
     for_each_cpu(i, &cpu_rq(cpu)->freq_domain_cpumask) {
 	struct rq *rq = cpu_rq(i);
 
-		raw_spin_lock_irqsave(&rq->lock, flags);
-		walt_update_task_ravg(rq->curr, rq, TASK_UPDATE,
-				      walt_ktime_clock(), 0);
-		rq->cur_freq = new_freq;
-		raw_spin_unlock_irqrestore(&rq->lock, flags);
-	}
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE,
+		      walt_ktime_clock(), 0);
+	rq->cur_freq = new_freq;
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
+    }
 
     return 0;
 }
