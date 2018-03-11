@@ -1467,7 +1467,7 @@ static void dequeue_task_rt(struct rq *rq, struct task_struct *p, int flags)
 
 	update_curr_rt(rq);
 
-	dequeue_rt_entity(rt_se, flags);
+	dequeue_rt_entity(rt_se);
 	walt_dec_cumulative_runnable_avg(rq, p);
 
 	dequeue_pushable_task(rq, p);
