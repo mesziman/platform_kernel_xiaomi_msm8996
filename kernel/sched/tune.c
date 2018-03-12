@@ -21,7 +21,7 @@ int sysctl_sched_cfs_boost __read_mostly;
 #define SCHEDTUNE_BOOST_HOLD_NS 50000000ULL
 
 extern struct reciprocal_value schedtune_spc_rdiv;
-extern struct target_nrg schedtune_target_nrg;
+struct target_nrg schedtune_target_nrg;
 
 /* Performance Boost region (B) threshold params */
 static int perf_boost_idx;

@@ -73,24 +73,24 @@ EXPORT_SYMBOL(avenrun); /* should be removed */
  */
 void get_avenrun(unsigned long *loads, unsigned long offset, int shift)
 {
-	loads[0] = (avenrun[0] + offset) << shift;
-	loads[1] = (avenrun[1] + offset) << shift;
-	loads[2] = (avenrun[2] + offset) << shift;
+    loads[0] = (avenrun[0] + offset) << shift;
+    loads[1] = (avenrun[1] + offset) << shift;
+    loads[2] = (avenrun[2] + offset) << shift;
 }
 
 long calc_load_fold_active(struct rq *this_rq)
 {
-	long nr_active, delta = 0;
+    long nr_active, delta = 0;
 
-	nr_active = this_rq->nr_running;
-	nr_active += (long)this_rq->nr_uninterruptible;
+    nr_active = this_rq->nr_running;
+    nr_active += (long)this_rq->nr_uninterruptible;
 
-	if (nr_active != this_rq->calc_load_active) {
-		delta = nr_active - this_rq->calc_load_active;
-		this_rq->calc_load_active = nr_active;
-	}
+    if (nr_active != this_rq->calc_load_active) {
+	delta = nr_active - this_rq->calc_load_active;
+	this_rq->calc_load_active = nr_active;
+    }
 
-	return delta;
+    return delta;
 }
 
 /*
@@ -99,10 +99,13 @@ long calc_load_fold_active(struct rq *this_rq)
 static unsigned long
 calc_load(unsigned long load, unsigned long exp, unsigned long active)
 {
-	load *= exp;
-	load += active * (FIXED_1 - exp);
-	load += 1UL << (FSHIFT - 1);
-	return load >> FSHIFT;
+    unsigned long newload;
+
+    newload = load * exp + active * (FIXED_1 - exp);
+    if (active >= load)
+	newload += FIXED_1-1;
+
+    return newload / FIXED_1;
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -153,75 +156,75 @@ static int calc_load_idx;
 
 static inline int calc_load_write_idx(void)
 {
-	int idx = calc_load_idx;
+    int idx = calc_load_idx;
 
-	/*
-	 * See calc_global_nohz(), if we observe the new index, we also
-	 * need to observe the new update time.
-	 */
-	smp_rmb();
+    /*
+     * See calc_global_nohz(), if we observe the new index, we also
+     * need to observe the new update time.
+     */
+    smp_rmb();
 
-	/*
-	 * If the folding window started, make sure we start writing in the
-	 * next idle-delta.
-	 */
-	if (!time_before(jiffies, READ_ONCE(calc_load_update)))
-		idx++;
+    /*
+     * If the folding window started, make sure we start writing in the
+     * next idle-delta.
+     */
+    if (!time_before(jiffies, READ_ONCE(calc_load_update)))
+	idx++;
 
-	return idx & 1;
+    return idx & 1;
 }
 
 static inline int calc_load_read_idx(void)
 {
-	return calc_load_idx & 1;
+    return calc_load_idx & 1;
 }
 
 void calc_load_enter_idle(void)
 {
-	struct rq *this_rq = this_rq();
-	long delta;
+    struct rq *this_rq = this_rq();
+    long delta;
 
-	/*
-	 * We're going into NOHZ mode, if there's any pending delta, fold it
-	 * into the pending idle delta.
-	 */
-	delta = calc_load_fold_active(this_rq);
-	if (delta) {
-		int idx = calc_load_write_idx();
+    /*
+     * We're going into NOHZ mode, if there's any pending delta, fold it
+     * into the pending idle delta.
+     */
+    delta = calc_load_fold_active(this_rq);
+    if (delta) {
+	int idx = calc_load_write_idx();
 
-		atomic_long_add(delta, &calc_load_idle[idx]);
-	}
+	atomic_long_add(delta, &calc_load_idle[idx]);
+    }
 }
 
 void calc_load_exit_idle(void)
 {
-	struct rq *this_rq = this_rq();
+    struct rq *this_rq = this_rq();
 
-	/*
-	 * If we're still before the pending sample window, we're done.
-	 */
-	this_rq->calc_load_update = READ_ONCE(calc_load_update);
-	if (time_before(jiffies, this_rq->calc_load_update))
-		return;
+    /*
+     * If we're still before the pending sample window, we're done.
+     */
+    this_rq->calc_load_update = READ_ONCE(calc_load_update);
+    if (time_before(jiffies, this_rq->calc_load_update))
+	return;
 
-	/*
-	 * We woke inside or after the sample window, this means we're already
-	 * accounted through the nohz accounting, so skip the entire deal and
-	 * sync up for the next window.
-	 */
-	if (time_before(jiffies, this_rq->calc_load_update + 10))
-		this_rq->calc_load_update += LOAD_FREQ;
+    /*
+     * We woke inside or after the sample window, this means we're already
+     * accounted through the nohz accounting, so skip the entire deal and
+     * sync up for the next window.
+     */
+    if (time_before(jiffies, this_rq->calc_load_update + 10))
+	this_rq->calc_load_update += LOAD_FREQ;
 }
 
 static long calc_load_fold_idle(void)
 {
-	int idx = calc_load_read_idx();
-	long delta = 0;
+    int idx = calc_load_read_idx();
+    long delta = 0;
 
-	if (atomic_long_read(&calc_load_idle[idx]))
-		delta = atomic_long_xchg(&calc_load_idle[idx], 0);
+    if (atomic_long_read(&calc_load_idle[idx]))
+	delta = atomic_long_xchg(&calc_load_idle[idx], 0);
 
-	return delta;
+    return delta;
 }
 
 /**
@@ -242,25 +245,25 @@ static long calc_load_fold_idle(void)
 static unsigned long
 fixed_power_int(unsigned long x, unsigned int frac_bits, unsigned int n)
 {
-	unsigned long result = 1UL << frac_bits;
+    unsigned long result = 1UL << frac_bits;
 
-	if (n) {
-		for (;;) {
-			if (n & 1) {
-				result *= x;
-				result += 1UL << (frac_bits - 1);
-				result >>= frac_bits;
-			}
-			n >>= 1;
-			if (!n)
-				break;
-			x *= x;
-			x += 1UL << (frac_bits - 1);
-			x >>= frac_bits;
-		}
+    if (n) {
+	for (;;) {
+	    if (n & 1) {
+		result *= x;
+		result += 1UL << (frac_bits - 1);
+		result >>= frac_bits;
+	    }
+	    n >>= 1;
+	    if (!n)
+		break;
+	    x *= x;
+	    x += 1UL << (frac_bits - 1);
+	    x >>= frac_bits;
 	}
+    }
 
-	return result;
+    return result;
 }
 
 /*
@@ -288,9 +291,9 @@ fixed_power_int(unsigned long x, unsigned int frac_bits, unsigned int n)
  */
 static unsigned long
 calc_load_n(unsigned long load, unsigned long exp,
-	    unsigned long active, unsigned int n)
+        unsigned long active, unsigned int n)
 {
-	return calc_load(load, fixed_power_int(exp, FSHIFT, n), active);
+    return calc_load(load, fixed_power_int(exp, FSHIFT, n), active);
 }
 
 /*
@@ -304,36 +307,36 @@ calc_load_n(unsigned long load, unsigned long exp,
  */
 static void calc_global_nohz(void)
 {
-	unsigned long sample_window;
-	long delta, active, n;
+    unsigned long sample_window;
+    long delta, active, n;
 
-	sample_window = READ_ONCE(calc_load_update);
-	if (!time_before(jiffies, sample_window + 10)) {
-		/*
-		 * Catch-up, fold however many we are behind still
-		 */
-		delta = jiffies - sample_window - 10;
-		n = 1 + (delta / LOAD_FREQ);
-
-		active = atomic_long_read(&calc_load_tasks);
-		active = active > 0 ? active * FIXED_1 : 0;
-
-		avenrun[0] = calc_load_n(avenrun[0], EXP_1, active, n);
-		avenrun[1] = calc_load_n(avenrun[1], EXP_5, active, n);
-		avenrun[2] = calc_load_n(avenrun[2], EXP_15, active, n);
-
-		WRITE_ONCE(calc_load_update, sample_window + n * LOAD_FREQ);
-	}
-
+    sample_window = READ_ONCE(calc_load_update);
+    if (!time_before(jiffies, sample_window + 10)) {
 	/*
-	 * Flip the idle index...
-	 *
-	 * Make sure we first write the new time then flip the index, so that
-	 * calc_load_write_idx() will see the new time when it reads the new
-	 * index, this avoids a double flip messing things up.
+	 * Catch-up, fold however many we are behind still
 	 */
-	smp_wmb();
-	calc_load_idx++;
+	delta = jiffies - sample_window - 10;
+	n = 1 + (delta / LOAD_FREQ);
+
+	active = atomic_long_read(&calc_load_tasks);
+	active = active > 0 ? active * FIXED_1 : 0;
+
+	avenrun[0] = calc_load_n(avenrun[0], EXP_1, active, n);
+	avenrun[1] = calc_load_n(avenrun[1], EXP_5, active, n);
+	avenrun[2] = calc_load_n(avenrun[2], EXP_15, active, n);
+
+	WRITE_ONCE(calc_load_update, sample_window + n * LOAD_FREQ);
+    }
+
+    /*
+     * Flip the idle index...
+     *
+     * Make sure we first write the new time then flip the index, so that
+     * calc_load_write_idx() will see the new time when it reads the new
+     * index, this avoids a double flip messing things up.
+     */
+    smp_wmb();
+    calc_load_idx++;
 }
 #else /* !CONFIG_NO_HZ_COMMON */
 
@@ -350,33 +353,33 @@ static inline void calc_global_nohz(void) { }
  */
 void calc_global_load(unsigned long ticks)
 {
-	unsigned long sample_window;
-	long active, delta;
+    unsigned long sample_window;
+    long active, delta;
 
-	sample_window = READ_ONCE(calc_load_update);
-	if (time_before(jiffies, sample_window + 10))
-		return;
+    sample_window = READ_ONCE(calc_load_update);
+    if (time_before(jiffies, sample_window + 10))
+	return;
 
-	/*
-	 * Fold the 'old' idle-delta to include all NO_HZ cpus.
-	 */
-	delta = calc_load_fold_idle();
-	if (delta)
-		atomic_long_add(delta, &calc_load_tasks);
+    /*
+     * Fold the 'old' idle-delta to include all NO_HZ cpus.
+     */
+    delta = calc_load_fold_idle();
+    if (delta)
+	atomic_long_add(delta, &calc_load_tasks);
 
-	active = atomic_long_read(&calc_load_tasks);
-	active = active > 0 ? active * FIXED_1 : 0;
+    active = atomic_long_read(&calc_load_tasks);
+    active = active > 0 ? active * FIXED_1 : 0;
 
-	avenrun[0] = calc_load(avenrun[0], EXP_1, active);
-	avenrun[1] = calc_load(avenrun[1], EXP_5, active);
-	avenrun[2] = calc_load(avenrun[2], EXP_15, active);
+    avenrun[0] = calc_load(avenrun[0], EXP_1, active);
+    avenrun[1] = calc_load(avenrun[1], EXP_5, active);
+    avenrun[2] = calc_load(avenrun[2], EXP_15, active);
 
-	WRITE_ONCE(calc_load_update, sample_window + LOAD_FREQ);
+    WRITE_ONCE(calc_load_update, sample_window + LOAD_FREQ);
 
-	/*
-	 * In case we idled for multiple LOAD_FREQ intervals, catch up in bulk.
-	 */
-	calc_global_nohz();
+    /*
+     * In case we idled for multiple LOAD_FREQ intervals, catch up in bulk.
+     */
+    calc_global_nohz();
 }
 
 /*
@@ -385,14 +388,14 @@ void calc_global_load(unsigned long ticks)
  */
 void calc_global_load_tick(struct rq *this_rq)
 {
-	long delta;
+    long delta;
 
-	if (time_before(jiffies, this_rq->calc_load_update))
-		return;
+    if (time_before(jiffies, this_rq->calc_load_update))
+	return;
 
-	delta  = calc_load_fold_active(this_rq);
-	if (delta)
-		atomic_long_add(delta, &calc_load_tasks);
+    delta  = calc_load_fold_active(this_rq);
+    if (delta)
+	atomic_long_add(delta, &calc_load_tasks);
 
-	this_rq->calc_load_update += LOAD_FREQ;
+    this_rq->calc_load_update += LOAD_FREQ;
 }

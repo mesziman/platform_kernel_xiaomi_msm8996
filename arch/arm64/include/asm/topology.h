@@ -1,6 +1,8 @@
 #ifndef __ASM_TOPOLOGY_H
 #define __ASM_TOPOLOGY_H
 
+#ifdef CONFIG_SMP
+
 #include <linux/cpumask.h>
 
 struct cpu_topology {
