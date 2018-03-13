@@ -866,7 +866,7 @@ retry:
 		}
 
 		if (io_data->aio) {
-			req = usb_ep_alloc_request(ep->ep, GFP_KERNEL);
+			req = usb_ep_alloc_request(ep->ep, GFP_ATOMIC);
 			if (unlikely(!req))
 				goto error_lock;
 
@@ -2884,8 +2884,8 @@ static int _ffs_func_bind(struct usb_configuration *c,
 	struct ffs_data *ffs = func->ffs;
 
 	const int full = !!func->ffs->fs_descs_count;
-	const int high = func->ffs->hs_descs_count;
-	const int super = func->ffs->ss_descs_count;
+	const int high = !!func->ffs->hs_descs_count;
+	const int super = !!func->ffs->ss_descs_count;
 
 	int fs_len, hs_len, ss_len, ret, i;
 
@@ -3581,33 +3581,33 @@ done:
 
 static void ffs_closed(struct ffs_data *ffs)
 {
-	struct ffs_dev *ffs_obj;
-	struct f_fs_opts *opts;
+    struct ffs_dev *ffs_obj;
+    struct f_fs_opts *opts;
 
-	ENTER();
-	ffs_dev_lock();
+    ENTER();
+    ffs_dev_lock();
 
-	ffs_obj = ffs->private_data;
-	if (!ffs_obj)
-		goto done;
+    ffs_obj = ffs->private_data;
+    if (!ffs_obj)
+	goto done;
 
-	ffs_obj->desc_ready = false;
+    ffs_obj->desc_ready = false;
 
-	if (test_and_clear_bit(FFS_FL_CALL_CLOSED_CALLBACK, &ffs->flags) &&
-	    ffs_obj->ffs_closed_callback)
-		ffs_obj->ffs_closed_callback(ffs);
+    if (test_and_clear_bit(FFS_FL_CALL_CLOSED_CALLBACK, &ffs->flags) &&
+        ffs_obj->ffs_closed_callback)
+	ffs_obj->ffs_closed_callback(ffs);
 
-	if (ffs_obj->opts)
-		opts = ffs_obj->opts;
-	else
-		goto done;
+    if (ffs_obj->opts)
+	opts = ffs_obj->opts;
+    else
+	goto done;
 
-	if (opts->no_configfs || !opts->func_inst.group.cg_item.ci_parent
-	    || !atomic_read(&opts->func_inst.group.cg_item.ci_kref.refcount))
-		goto done;
+    if (opts->no_configfs || !opts->func_inst.group.cg_item.ci_parent
+        || !atomic_read(&opts->func_inst.group.cg_item.ci_kref.refcount))
+	goto done;
 
 done:
-	ffs_dev_unlock();
+    ffs_dev_unlock();
 }
 
 /* Misc helper functions ****************************************************/
