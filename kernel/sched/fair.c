@@ -5304,51 +5304,36 @@ static void calc_sg_energy(struct energy_env *eenv, int cpu)
  */
 static int compute_energy(struct energy_env *eenv, int candidate)
 {
-    struct cpumask visit_cpus;
-    int cpu_count;
+	struct cpumask visit_cpus;
+	int cpu_count;
 
-    WARN_ON(!eenv->sg_top->sge);
+	WARN_ON(!eenv->sg_top->sge);
 
-    cpumask_copy(&visit_cpus, sched_group_cpus(eenv->sg_top));
-    /* If a cpu is hotplugged in while we are in this function,
-     * it does not appear in the existing visit_cpus mask
-     * which came from the sched_group pointer of the
-     * sched_domain pointed at by sd_ea for either the prev
-     * or next cpu and was dereferenced in __energy_diff.
-     * Since we will dereference sd_scs later as we iterate
-     * through the CPUs we expect to visit, new CPUs can
-     * be present which are not in the visit_cpus mask.
-     * Guard this with cpu_count.
-     */
-    cpu_count = cpumask_weight(&visit_cpus);
-
-    while (!cpumask_empty(&visit_cpus)) {
-	struct sched_group *sg_shared_cap = NULL;
-	int cpu = cpumask_first(&visit_cpus);
-	struct sched_domain *sd;
-
-	/*
-	 * Is the group utilization affected by cpus outside this
-	 * sched_group?
-	 * This sd may have groups with cpus which were not present
-	 * when we took visit_cpus.
+	cpumask_copy(&visit_cpus, sched_group_cpus(eenv->sg_top));
+	/* If a cpu is hotplugged in while we are in this function,
+	 * it does not appear in the existing visit_cpus mask
+	 * which came from the sched_group pointer of the
+	 * sched_domain pointed at by sd_ea for either the prev
+	 * or next cpu and was dereferenced in __energy_diff.
+	 * Since we will dereference sd_scs later as we iterate
+	 * through the CPUs we expect to visit, new CPUs can
+	 * be present which are not in the visit_cpus mask.
+	 * Guard this with cpu_count.
 	 */
-	sd = rcu_dereference(per_cpu(sd_scs, cpu));
-	if (sd && sd->parent)
-	    sg_shared_cap = sd->parent->groups;
+	cpu_count = cpumask_weight(&visit_cpus);
 
-	for_each_domain(cpu, sd) {
-	    struct sched_group *sg = sd->groups;
+	while (!cpumask_empty(&visit_cpus)) {
+		int cpu = cpumask_first(&visit_cpus);
+		struct sched_domain *sd;
+
+		for_each_domain(cpu, sd) {
+			struct sched_group *sg = sd->groups;
 
 	    /* Has this sched_domain already been visited? */
 	    if (sd->child && group_first_cpu(sg) != cpu)
 		break;
 
 			do {
-				eenv->sg_cap = sg;
-				if (sg_shared_cap && sg_shared_cap->group_weight >= sg->group_weight)
-					eenv->sg_cap = sg_shared_cap;
-
 				/*
 				 * Compute the energy for all the candidate
 				 * CPUs in the current visited SG.
@@ -5439,8 +5424,9 @@ next_cpu:
  */
 static int compute_task_energy(struct energy_env *eenv, int cpu)
 {
-	struct sched_domain *sd;
+	struct sched_domain *sd, *sd_cap;
 	struct sched_group *sg;
+	int first_cpu;
 
 	sd = rcu_dereference(per_cpu(sd_ea, cpu));
 	if (!sd)
@@ -5453,6 +5439,20 @@ static int compute_task_energy(struct energy_env *eenv, int cpu)
 			continue;
 
 		eenv->sg_top = sg;
+
+		first_cpu = cpumask_first(sched_group_cpus(sg));
+
+		/*
+		 * The CPU capacity sharing attribution is decided by hardhware
+		 * design so we can decide the sg_cp value at the beginning
+		 * for specific CPU.
+		 */
+		sd_cap = rcu_dereference(per_cpu(sd_scs, first_cpu));
+		if (sd_cap && sd_cap->parent)
+			eenv->sg_cap = sd_cap->parent->groups;
+		else
+			eenv->sg_cap = sd_cap->groups;
+
 		/* energy is unscaled to reduce rounding errors */
 		if (compute_energy(eenv, cpu) == -EINVAL) {
 			eenv->next_cpu = eenv->prev_cpu;
