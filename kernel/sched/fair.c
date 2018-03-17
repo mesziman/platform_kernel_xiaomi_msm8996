@@ -6520,6 +6520,8 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu, int sync
     int target_cpu;
     int backup_cpu;
     int next_cpu;
+    int delta = 0;
+    struct energy_env eenv;
 
     schedstat_inc(p, se.statistics.nr_wakeups_secb_attempts);
     schedstat_inc(this_rq(), eas_stats.secb_attempts);
@@ -6560,30 +6562,26 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu, int sync
     }
 
     target_cpu = prev_cpu;
-    if (next_cpu != prev_cpu) {
-	int delta = 0;
-	struct energy_env eenv = {
-	    .p              = p,
-	    .util_delta     = task_util(p),
-	    /* Task's previous CPU candidate */
-	    .cpu[EAS_CPU_PRV] = {
-		.cpu_id = prev_cpu,
-	    },
-	    /* Main alternative CPU candidate */
-	    .cpu[EAS_CPU_NXT] = {
-		.cpu_id = next_cpu,
-	    },
-	    /* Backup alternative CPU candidate */
-	    .cpu[EAS_CPU_BKP] = {
-		.cpu_id = backup_cpu,
-	    },
-	};
 
+    if (next_cpu == prev_cpu) {
+		schedstat_inc(p, se.statistics.nr_wakeups_secb_count);
+		schedstat_inc(this_rq(), eas_stats.secb_count);
+		return target_cpu;
+	}
+
+    eenv.p              = p;
+    eenv.util_delta     = task_util(p);
+    /* Task's previous CPU candidate */
+    eenv.cpu[EAS_CPU_PRV].cpu_id = prev_cpu;
+    /* Main alternative CPU candidate */
+    eenv.cpu[EAS_CPU_NXT].cpu_id = next_cpu;
+    /* Backup alternative CPU candidate */
+    eenv.cpu[EAS_CPU_BKP].cpu_id = backup_cpu;
 
 #ifdef CONFIG_SCHED_WALT
-	if (!walt_disabled && sysctl_sched_use_walt_cpu_util &&
-	    p->state == TASK_WAKING)
-	    delta = task_util(p);
+    if (!walt_disabled && sysctl_sched_use_walt_cpu_util &&
+	p->state == TASK_WAKING)
+	delta = task_util(p);
 #endif
 	/* Not enough spare capacity on previous cpu */
 	if (__cpu_overutilized(prev_cpu, delta)) {
