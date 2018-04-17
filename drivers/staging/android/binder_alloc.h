@@ -21,9 +21,7 @@
 #include <linux/rtmutex.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include <linux/list_lru.h>
 
-extern struct list_lru binder_alloc_lru;
 struct binder_transaction;
 
 /**
@@ -44,34 +42,22 @@ struct binder_transaction;
  * Bookkeeping structure for binder transaction buffers
  */
 struct binder_buffer {
-    struct list_head entry; /* free and allocated entries by address */
-    struct rb_node rb_node; /* free entry by size or allocated entry */
-		/* by address */
-    unsigned free:1;
-    unsigned allow_user_free:1;
-    unsigned async_transaction:1;
-    unsigned free_in_progress:1;
-    unsigned debug_id:28;
+	struct list_head entry; /* free and allocated entries by address */
+	struct rb_node rb_node; /* free entry by size or allocated entry */
+				/* by address */
+	unsigned free:1;
+	unsigned allow_user_free:1;
+	unsigned async_transaction:1;
+	unsigned free_in_progress:1;
+	unsigned debug_id:28;
 
-    struct binder_transaction *transaction;
+	struct binder_transaction *transaction;
 
-    struct binder_node *target_node;
-    size_t data_size;
-    size_t offsets_size;
-    size_t extra_buffers_size;
-    void *data;
-};
-
-/**
- * struct binder_lru_page - page object used for binder shrinker
- * @page_ptr: pointer to physical page in mmap'd space
- * @lru:      entry in binder_alloc_lru
- * @alloc:    binder_alloc for a proc
- */
-struct binder_lru_page {
-    struct list_head lru;
-    struct page *page_ptr;
-    struct binder_alloc *alloc;
+	struct binder_node *target_node;
+	size_t data_size;
+	size_t offsets_size;
+	size_t extra_buffers_size;
+	uint8_t data[0];
 };
 
 /**
@@ -89,10 +75,10 @@ struct binder_lru_page {
  * @allocated_buffers:  rb tree of allocated buffers sorted by address
  * @free_async_space:   VA space available for async buffers. This is
  *                      initialized at mmap time to 1/2 the full VA space
- * @pages:              array of binder_lru_page
+ * @pages:              array of physical page addresses for each
+ *                      page of mmap'd space
  * @buffer_size:        size of address space specified via mmap
  * @pid:                pid for associated binder_proc (invariant after init)
- * @pages_high:         high watermark of offset in @pages
  *
  * Bookkeeping structure for per-proc address space management for binder
  * buffers. It is normally initialized during binder_init() and binder_mmap()
@@ -100,50 +86,40 @@ struct binder_lru_page {
  * struct binder_buffer objects used to track the user buffers
  */
 struct binder_alloc {
-    struct mutex mutex;
-    struct vm_area_struct *vma;
-    struct mm_struct *vma_vm_mm;
-    void *buffer;
-    ptrdiff_t user_buffer_offset;
-    struct list_head buffers;
-    struct rb_root free_buffers;
-    struct rb_root allocated_buffers;
-    size_t free_async_space;
-    struct binder_lru_page *pages;
-    size_t buffer_size;
-    uint32_t buffer_free;
-    int pid;
-    size_t pages_high;
+	struct mutex mutex;
+	struct task_struct *tsk;
+	struct vm_area_struct *vma;
+	struct mm_struct *vma_vm_mm;
+	void *buffer;
+	ptrdiff_t user_buffer_offset;
+	struct list_head buffers;
+	struct rb_root free_buffers;
+	struct rb_root allocated_buffers;
+	size_t free_async_space;
+	struct page **pages;
+	size_t buffer_size;
+	uint32_t buffer_free;
+	int pid;
 };
 
-#ifdef CONFIG_ANDROID_BINDER_IPC_SELFTEST
-void binder_selftest_alloc(struct binder_alloc *alloc);
-#else
-static inline void binder_selftest_alloc(struct binder_alloc *alloc) {}
-#endif
-enum lru_status binder_alloc_free_page(struct list_head *item,
-		       spinlock_t *lock, void *cb_arg);
 extern struct binder_buffer *binder_alloc_new_buf(struct binder_alloc *alloc,
-			  size_t data_size,
-			  size_t offsets_size,
-			  size_t extra_buffers_size,
-			  int is_async);
+						  size_t data_size,
+						  size_t offsets_size,
+						  size_t extra_buffers_size,
+						  int is_async);
 extern void binder_alloc_init(struct binder_alloc *alloc);
-void binder_alloc_shrinker_init(void);
 extern void binder_alloc_vma_close(struct binder_alloc *alloc);
 extern struct binder_buffer *
 binder_alloc_prepare_to_free(struct binder_alloc *alloc,
-	         uintptr_t user_ptr);
+			     uintptr_t user_ptr);
 extern void binder_alloc_free_buf(struct binder_alloc *alloc,
-		  struct binder_buffer *buffer);
+				  struct binder_buffer *buffer);
 extern int binder_alloc_mmap_handler(struct binder_alloc *alloc,
-		     struct vm_area_struct *vma);
+				     struct vm_area_struct *vma);
 extern void binder_alloc_deferred_release(struct binder_alloc *alloc);
 extern int binder_alloc_get_allocated_count(struct binder_alloc *alloc);
 extern void binder_alloc_print_allocated(struct seq_file *m,
-		     struct binder_alloc *alloc);
-void binder_alloc_print_pages(struct seq_file *m,
-	          struct binder_alloc *alloc);
+					 struct binder_alloc *alloc);
 
 /**
  * binder_alloc_get_free_async_space() - get free space available for async
@@ -154,12 +130,12 @@ void binder_alloc_print_pages(struct seq_file *m,
 static inline size_t
 binder_alloc_get_free_async_space(struct binder_alloc *alloc)
 {
-    size_t free_async_space;
+	size_t free_async_space;
 
-    mutex_lock(&alloc->mutex);
-    free_async_space = alloc->free_async_space;
-    mutex_unlock(&alloc->mutex);
-    return free_async_space;
+	mutex_lock(&alloc->mutex);
+	free_async_space = alloc->free_async_space;
+	mutex_unlock(&alloc->mutex);
+	return free_async_space;
 }
 
 /**
@@ -172,15 +148,16 @@ binder_alloc_get_free_async_space(struct binder_alloc *alloc)
 static inline ptrdiff_t
 binder_alloc_get_user_buffer_offset(struct binder_alloc *alloc)
 {
-    /*
-     * user_buffer_offset is constant if vma is set and
-     * undefined if vma is not set. It is possible to
-     * get here with !alloc->vma if the target process
-     * is dying while a transaction is being initiated.
-     * Returning the old value is ok in this case and
-     * the transaction will fail.
-     */
-    return alloc->user_buffer_offset;
+	/*
+	 * user_buffer_offset is constant if vma is set and
+	 * undefined if vma is not set. It is possible to
+	 * get here with !alloc->vma if the target process
+	 * is dying while a transaction is being initiated.
+	 * Returning the old value is ok in this case and
+	 * the transaction will fail.
+	 */
+	return alloc->user_buffer_offset;
 }
 
 #endif /* _LINUX_BINDER_ALLOC_H */
+
