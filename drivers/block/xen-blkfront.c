@@ -1536,7 +1536,7 @@ static int blkif_recover(struct blkfront_info *info)
 		/* Requeue pending requests (flush or discard) */
 		list_del_init(&req->queuelist);
 		BUG_ON(req->nr_phys_segments > segs);
-		blk_mq_requeue_request(req, false);
+		blk_requeue_request(info->rq, req);
 	}
 	spin_unlock_irq(&info->io_lock);
 

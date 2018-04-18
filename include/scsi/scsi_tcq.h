@@ -16,8 +16,6 @@
 
 #ifdef CONFIG_BLOCK
 
-int scsi_change_queue_type(struct scsi_device *sdev, int tag_type);
-
 /**
  * scsi_get_tag_type - get the type of tag the device supports
  * @sdev:	the scsi device
@@ -54,6 +52,40 @@ static inline void scsi_set_tag_type(struct scsi_device *sdev, int tag)
 		break;
 	}
 }
+/**
+ * scsi_activate_tcq - turn on tag command queueing
+ * @SDpnt:	device to turn on TCQ for
+ * @depth:	queue depth
+ *
+ * Notes:
+ *	Eventually, I hope depth would be the maximum depth
+ *	the device could cope with and the real queue depth
+ *	would be adjustable from 0 to depth.
+ **/
+static inline void scsi_activate_tcq(struct scsi_device *sdev, int depth)
+{
+	if (!sdev->tagged_supported)
+		return;
+
+	if (shost_use_blk_mq(sdev->host))
+		queue_flag_set_unlocked(QUEUE_FLAG_QUEUED, sdev->request_queue);
+	else if (!blk_queue_tagged(sdev->request_queue))
+		blk_queue_init_tags(sdev->request_queue, depth,
+				    sdev->host->bqt);
+
+	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
+}
+
+/**
+ * scsi_deactivate_tcq - turn off tag command queueing
+ * @SDpnt:	device to turn off TCQ for
+ **/
+static inline void scsi_deactivate_tcq(struct scsi_device *sdev, int depth)
+{
+	if (blk_queue_tagged(sdev->request_queue))
+		blk_queue_free_tags(sdev->request_queue);
+	scsi_adjust_queue_depth(sdev, 0, depth);
+}
 
 /**
  * scsi_populate_tag_msg - place a tag message in a buffer
@@ -67,9 +99,11 @@ static inline void scsi_set_tag_type(struct scsi_device *sdev, int tag)
  **/
 static inline int scsi_populate_tag_msg(struct scsi_cmnd *cmd, char *msg)
 {
-        if (cmd->flags & SCMD_TAGGED) {
+        struct request *req = cmd->request;
+
+        if (blk_rq_tagged(req)) {
 		*msg++ = MSG_SIMPLE_TAG;
-        	*msg++ = cmd->request->tag;
+        	*msg++ = req->tag;
         	return 2;
 	}
 
@@ -129,8 +163,7 @@ static inline int scsi_init_shared_tag_map(struct Scsi_Host *shost, int depth)
 	 * devices on the shared host (for libata)
 	 */
 	if (!shost->bqt) {
-		shost->bqt = blk_init_tags(depth,
-			shost->hostt->tag_alloc_policy);
+		shost->bqt = blk_init_tags(depth);
 		if (!shost->bqt)
 			return -ENOMEM;
 	}
