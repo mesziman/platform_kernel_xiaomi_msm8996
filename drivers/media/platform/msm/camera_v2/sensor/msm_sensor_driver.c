@@ -675,14 +675,14 @@ static void msm_sensor_fill_sensor_info(struct msm_sensor_ctrl_t *s_ctrl,
 
 extern unsigned int get_hw_version_devid(void);
 
-extern int gemini_get_front_sensor_name(char *);
-extern int scorpio_get_back_sensor_name(char *);
-extern int scorpio_get_front_sensor_name(char *);
-extern int capricorn_get_back_sensor_name(char *);
-extern int natrium_get_main_sensor_name(char *);
-extern int natrium_get_aux_sensor_name(char *);
-extern int lithium_get_rear_sensor_name(char *);
-extern int natrium_get_front_sensor_name(char *);
+extern int a1_get_front_sensor_name(char *);
+extern int a4_get_back_sensor_name(char *);
+extern int a4_get_front_sensor_name(char *);
+extern int a7_get_back_sensor_name(char *);
+extern int b7_get_main_sensor_name(char *);
+extern int b7_get_aux_sensor_name(char *);
+extern int a8_get_rear_sensor_name(char *);
+extern int b7_get_front_sensor_name(char *);
 
 /* static function definition */
 int32_t msm_sensor_driver_probe(void *setting,
@@ -697,14 +697,14 @@ int32_t msm_sensor_driver_probe(void *setting,
 	unsigned long                        mount_pos = 0;
 	uint32_t                             is_yuv;
 
-	char gemini_front_sensor_name[32];
-	char scorpio_back_sensor_name[32];
-	char scorpio_front_sensor_name[32];
-	char capricorn_back_sensor_name[32];
-	char natrium_main_sensor_name[32];
-	char natrium_aux_sensor_name[32];
-	char lithium_rear_sensor_name[32];
-	char natrium_front_sensor_name[32];
+	char a1_front_sensor_name[32];
+	char a4_back_sensor_name[32];
+	char a4_front_sensor_name[32];
+	char a7_back_sensor_name[32];
+	char b7_main_sensor_name[32];
+	char b7_aux_sensor_name[32];
+	char a8_rear_sensor_name[32];
+	char b7_front_sensor_name[32];
 	unsigned int hw_version_devid = 0;
 
 	hw_version_devid = get_hw_version_devid();
@@ -787,107 +787,112 @@ int32_t msm_sensor_driver_probe(void *setting,
 		}
 	}
 
-	if (strlen(slave_info->sensor_name) >= MAX_SENSOR_NAME ||
-		strlen(slave_info->eeprom_name) >= MAX_SENSOR_NAME ||
-		strlen(slave_info->actuator_name) >= MAX_SENSOR_NAME ||
-		strlen(slave_info->ois_name) >= MAX_SENSOR_NAME) {
-		pr_err("failed: name len greater than 32.\n");
-		pr_err("sensor name len:%zu, eeprom name len: %zu.\n",
-			strlen(slave_info->sensor_name),
-			strlen(slave_info->eeprom_name));
-		pr_err("actuator name len: %zu, ois name len:%zu.\n",
-			strlen(slave_info->actuator_name),
-			strlen(slave_info->ois_name));
-		rc = -EINVAL;
-		goto free_slave_info;
-	}
+//    pr_err("%s, %s bypass %d force to 0 \n", __func__, slave_info->sensor_name, slave_info->bypass_video_node_creation);
+//    slave_info->bypass_video_node_creation = 0;
 
-	if (strcmp(slave_info->eeprom_name, "ov4688") == 0) {
-		gemini_get_front_sensor_name(gemini_front_sensor_name);
-		if (hw_version_devid == 7)
-			strcat(gemini_front_sensor_name, "_a7");
-		pr_info("slave_info sensor_name = %s, front_sensor_name - %s\n",
-				slave_info->sensor_name, gemini_front_sensor_name);
-		if (strcmp(slave_info->sensor_name, gemini_front_sensor_name) != 0) {
-			pr_err("%s %d: gemini sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
-	}
+    if (strlen(slave_info->sensor_name) >= MAX_SENSOR_NAME ||
+	strlen(slave_info->eeprom_name) >= MAX_SENSOR_NAME ||
+	strlen(slave_info->actuator_name) >= MAX_SENSOR_NAME ||
+	strlen(slave_info->ois_name) >= MAX_SENSOR_NAME) {
+	pr_err("failed: name len greater than 32.\n");
+	pr_err("sensor name len:%zu, eeprom name len: %zu.\n",
+	    strlen(slave_info->sensor_name),
+	    strlen(slave_info->eeprom_name));
+	pr_err("actuator name len: %zu, ois name len:%zu.\n",
+	    strlen(slave_info->actuator_name),
+	    strlen(slave_info->ois_name));
+	rc = -EINVAL;
+	goto free_slave_info;
+    }
 
-	if (strcmp(slave_info->eeprom_name, "sony_imx378") == 0) {
-		capricorn_get_back_sensor_name(capricorn_back_sensor_name);
-		CDBG("slave_info sensor_name = %s, back_sensor_name - %s\n",
-			slave_info->sensor_name, capricorn_back_sensor_name);
-		if (strcmp(slave_info->sensor_name, capricorn_back_sensor_name) != 0) {
-			CDBG("%s %d: capricorn back sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
+/* XMADD for distinguish module vendor */
+    if (strcmp(slave_info->eeprom_name, "ov4688") == 0) {
+	a1_get_front_sensor_name(a1_front_sensor_name);
+	if (hw_version_devid == 7)
+	    strcat(a1_front_sensor_name, "_a7");
+	pr_info("slave_info sensor_name = %s, front_sensor_name - %s\n",
+		slave_info->sensor_name, a1_front_sensor_name);
+	if (strcmp(slave_info->sensor_name, a1_front_sensor_name) != 0) {
+	    pr_err("%s %d: a1 sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
 	}
+    }
+/* XMADD */
+	 if (strncmp(slave_info->eeprom_name, "imx318", strlen("imx318")) == 0) {
+	a4_get_back_sensor_name(a4_back_sensor_name);
+	CDBG("slave_info sensor_name = %s, back_sensor_name - %s\n",
+	    slave_info->sensor_name, a4_back_sensor_name);
+	if (strcmp(slave_info->sensor_name, a4_back_sensor_name) != 0) {
+	    CDBG("%s %d: a4 back sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
+	}
+    }
 
-	if (strncmp(slave_info->eeprom_name, "imx318", strlen("imx318")) == 0) {
-		scorpio_get_back_sensor_name(scorpio_back_sensor_name);
-		CDBG("slave_info sensor_name = %s, back_sensor_name - %s\n",
-			slave_info->sensor_name, scorpio_back_sensor_name);
-		if (strcmp(slave_info->sensor_name, scorpio_back_sensor_name) != 0) {
-			CDBG("%s %d: scorpio back sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
+    if (strncmp(slave_info->eeprom_name, "imx268", strlen("imx268")) == 0) {
+	a4_get_front_sensor_name(a4_front_sensor_name);
+	CDBG("slave_info sensor_name = %s, front_sensor_name - %s\n",
+	    slave_info->sensor_name, a4_front_sensor_name);
+	if (strcmp(slave_info->sensor_name, a4_front_sensor_name) != 0) {
+	    CDBG("%s %d: a4 front sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
 	}
-	if (strncmp(slave_info->eeprom_name, "imx268", strlen("imx268")) == 0) {
-		scorpio_get_front_sensor_name(scorpio_front_sensor_name);
-		CDBG("slave_info sensor_name = %s, front_sensor_name - %s\n",
-			slave_info->sensor_name, scorpio_front_sensor_name);
-		if (strcmp(slave_info->sensor_name, scorpio_front_sensor_name) != 0) {
-			CDBG("%s %d: scorpio front sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
-	}
+    }
 
-	if (strcmp(slave_info->eeprom_name, "imx258_gt24c32") == 0) {
-		natrium_get_main_sensor_name(natrium_main_sensor_name);
-		pr_err("slave_info sensor_name = %s, main_sensor_name - %s\n",
-			slave_info->sensor_name, natrium_main_sensor_name);
-		if (strcmp(slave_info->sensor_name, natrium_main_sensor_name) != 0) {
-			pr_err("%s %d: natrium main sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
+    if (strcmp(slave_info->eeprom_name, "sony_imx378") == 0) {
+	a7_get_back_sensor_name(a7_back_sensor_name);
+	CDBG("slave_info sensor_name = %s, back_sensor_name - %s\n",
+	    slave_info->sensor_name, a7_back_sensor_name);
+	if (strcmp(slave_info->sensor_name, a7_back_sensor_name) != 0) {
+	    CDBG("%s %d: a7 back sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
 	}
-	if (strcmp(slave_info->eeprom_name, "imx258_mono_gt24c32") == 0) {
-		natrium_get_aux_sensor_name(natrium_aux_sensor_name);
-		pr_err("slave_info sensor_name = %s, aux_sensor_name - %s\n",
-			slave_info->sensor_name, natrium_aux_sensor_name);
-		if (strcmp(slave_info->sensor_name, natrium_aux_sensor_name) != 0) {
-			pr_err("%s %d: natrium aux sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
+    }
+    if (strcmp(slave_info->eeprom_name, "imx258_gt24c32") == 0) {
+	b7_get_main_sensor_name(b7_main_sensor_name);
+	pr_err("slave_info sensor_name = %s, main_sensor_name - %s\n",
+	    slave_info->sensor_name, b7_main_sensor_name);
+	if (strcmp(slave_info->sensor_name, b7_main_sensor_name) != 0) {
+	    pr_err("%s %d: b7 main sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
 	}
-	if (strcmp(slave_info->eeprom_name, "ov4688_natrium") == 0) {
-		natrium_get_front_sensor_name(natrium_front_sensor_name);
-		pr_err("slave_info sensor_name = %s, front_sensor_name - %s\n",
-			slave_info->sensor_name, natrium_front_sensor_name);
-		if (strcmp(slave_info->sensor_name, natrium_front_sensor_name) != 0) {
-			pr_err("%s %d: natrium front sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
+    }
+    if (strcmp(slave_info->eeprom_name, "imx258_mono_gt24c32") == 0) {
+	b7_get_aux_sensor_name(b7_aux_sensor_name);
+	pr_err("slave_info sensor_name = %s, aux_sensor_name - %s\n",
+	    slave_info->sensor_name, b7_aux_sensor_name);
+	if (strcmp(slave_info->sensor_name, b7_aux_sensor_name) != 0) {
+	    pr_err("%s %d: b7 aux sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
 	}
+    }
 
-	if (strcmp(slave_info->eeprom_name, "ov16880_ofilm") == 0) {
-		lithium_get_rear_sensor_name(lithium_rear_sensor_name);
-		pr_err("slave_info sensor_name = %s, main_sensor_name - %s\n",
-			slave_info->sensor_name, lithium_rear_sensor_name);
-		if (strcmp(slave_info->sensor_name, lithium_rear_sensor_name) != 0) {
-			pr_err("%s %d: lithium sensor name not match!\n", __func__, __LINE__);
-			rc = -EFAULT;
-			goto free_slave_info;
-		}
+    if (strcmp(slave_info->eeprom_name, "ov16880_ofilm") == 0) {
+	a8_get_rear_sensor_name(a8_rear_sensor_name);
+	pr_err("slave_info sensor_name = %s, main_sensor_name - %s\n",
+	    slave_info->sensor_name, a8_rear_sensor_name);
+	if (strcmp(slave_info->sensor_name, a8_rear_sensor_name) != 0) {
+	    pr_err("%s %d: a8 sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
 	}
+    }
+
+    if (strcmp(slave_info->eeprom_name, "ov4688_b7") == 0) {
+	b7_get_front_sensor_name(b7_front_sensor_name);
+	pr_err("slave_info sensor_name = %s, front_sensor_name - %s\n",
+	    slave_info->sensor_name, b7_front_sensor_name);
+	if (strcmp(slave_info->sensor_name, b7_front_sensor_name) != 0) {
+	    pr_err("%s %d: b7 front sensor name not match!\n", __func__, __LINE__);
+	    rc = -EFAULT;
+	    goto free_slave_info;
+	}
+    }
 
 	/* Print slave info */
 	CDBG("camera id %d Slave addr 0x%X addr_type %d\n",
