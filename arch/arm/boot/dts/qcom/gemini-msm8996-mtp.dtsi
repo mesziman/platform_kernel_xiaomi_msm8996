@@ -337,6 +337,7 @@
 	qcom,batt-id-range-pct = <15>;
 	#include "batterydata-gemini-atl-3000mah.dtsi"
 	#include "batterydata-gemini-sdi-3000mah.dtsi"
+	#include "batterydata-itech-3000mah-4200mv.dtsi"
 };
 
 &qusb_phy0 {
