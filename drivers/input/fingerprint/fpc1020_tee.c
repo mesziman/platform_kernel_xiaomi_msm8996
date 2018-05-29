@@ -605,7 +605,7 @@ static int fpc1020_tee_probe(struct platform_device *pdev)
 	if (fpc1020->wakeup_enabled) {
 		enable_irq_wake(gpio_to_irq(fpc1020->irq_gpio));
 	}
-
+	fpc1020->irq_enabled = true;
 	fpc1020->report_key_events = false;
 
 	fpc1020->input_handler.filter = input_filter;
