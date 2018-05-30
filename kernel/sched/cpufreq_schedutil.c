@@ -28,6 +28,10 @@ unsigned long boosted_cpu_util(int cpu);
 #define cpufreq_disable_fast_switch(x)
 #define LATENCY_MULTIPLIER			(1000)
 
+#define DEFAULT_UP_RATE_LIMIT			(250)
+#define DEFAULT_DOWN_RATE_LIMIT			(1500)
+#define DEFAULT_IOWAIT_BOOST_ENABLE		(1)
+
 struct sugov_tunables {
 	struct gov_attr_set attr_set;
 	unsigned int up_rate_limit_us;
@@ -751,8 +755,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 	} else {
 		unsigned int lat;
 
-                tunables->up_rate_limit_us = LATENCY_MULTIPLIER;
-                tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
+                tunables->up_rate_limit_us = DEFAULT_UP_RATE_LIMIT;
+                tunables->down_rate_limit_us = DEFAULT_DOWN_RATE_LIMIT;
+		tunables->iowait_boost_enable = DEFAULT_IOWAIT_BOOST_ENABLE;
 		lat = policy->cpuinfo.transition_latency / NSEC_PER_USEC;
 		if (lat) {
                         tunables->up_rate_limit_us *= lat;
