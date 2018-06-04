@@ -1126,6 +1126,7 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 
 	if (level->notify_rpm) {
 		struct cpumask nextcpu, *cpumask;
+		uint32_t pred_us;
 		uint64_t us;
 		uint64_t sec;
 		uint64_t nsec;
