@@ -45,10 +45,7 @@
 #define CREATE_TRACE_POINTS
 #include "trace/lowmemorykiller.h"
 
-/* to enable lowmemorykiller */
-static int enable_lmk = 1;
-module_param_named(enable_lmk, enable_lmk, int,
-	S_IRUGO | S_IWUSR);
+static uint32_t lmk_count = 1;
 
 static uint32_t lowmem_debug_level = 1;
 static short lowmem_adj[6] = {
@@ -82,9 +79,6 @@ static unsigned long lowmem_deathpending_timeout;
 static unsigned long lowmem_count(struct shrinker *s,
 				  struct shrink_control *sc)
 {
-	if (!enable_lmk)
-		return 0;
-
 	return global_page_state(NR_ACTIVE_ANON) +
 		global_page_state(NR_ACTIVE_FILE) +
 		global_page_state(NR_INACTIVE_ANON) +
@@ -276,6 +270,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		send_sig(SIGKILL, selected, 0);
 		rem += selected_tasksize;
 		rcu_read_unlock();
+		lmk_count++;
 	} else
 		rcu_read_unlock();
 
@@ -287,11 +282,14 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 #ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
 DEFINE_SPINLOCK(lmk_lock);
 struct rb_root tasks_scoreadj = RB_ROOT;
+/*
+ * Makesure to invoke the function with holding sighand->siglock
+ */
 void add_2_adj_tree(struct task_struct *task)
 {
 	struct rb_node **link;
 	struct rb_node *parent = NULL;
-	struct task_struct *task_entry;
+	struct signal_struct *sig_entry;
 	s64 key = task->signal->oom_score_adj;
 
 	/*
@@ -301,25 +299,28 @@ void add_2_adj_tree(struct task_struct *task)
 	link =  &tasks_scoreadj.rb_node;
 	while (*link) {
 		parent = *link;
-		task_entry = rb_entry(parent, struct task_struct, adj_node);
+		sig_entry = rb_entry(parent, struct signal_struct, adj_node);
 
-		if (key < task_entry->signal->oom_score_adj)
+		if (key < sig_entry->oom_score_adj)
 			link = &parent->rb_right;
 		else
 			link = &parent->rb_left;
 	}
 
-	rb_link_node(&task->adj_node, parent, link);
-	rb_insert_color(&task->adj_node, &tasks_scoreadj);
+	rb_link_node(&task->signal->adj_node, parent, link);
+	rb_insert_color(&task->signal->adj_node, &tasks_scoreadj);
 	spin_unlock(&lmk_lock);
 }
 
+/*
+ * Makesure to invoke the function with holding sighand->siglock
+ */
 void delete_from_adj_tree(struct task_struct *task)
 {
 	spin_lock(&lmk_lock);
-	if (!RB_EMPTY_NODE(&task->adj_node)) {
-		rb_erase(&task->adj_node, &tasks_scoreadj);
-		RB_CLEAR_NODE(&task->adj_node);
+	if (!RB_EMPTY_NODE(&task->signal->adj_node)) {
+		rb_erase(&task->signal->adj_node, &tasks_scoreadj);
+		RB_CLEAR_NODE(&task->signal->adj_node);
 	}
 	spin_unlock(&lmk_lock);
 }
@@ -327,20 +328,23 @@ void delete_from_adj_tree(struct task_struct *task)
 static struct task_struct *pick_next_from_adj_tree(struct task_struct *task)
 {
 	struct rb_node *next;
+	struct signal_struct *next_tsk_sig;
 
 	spin_lock(&lmk_lock);
-	next = rb_next(&task->adj_node);
+	next = rb_next(&task->signal->adj_node);
 	spin_unlock(&lmk_lock);
 
 	if (!next)
 		return NULL;
 
-	return rb_entry(next, struct task_struct, adj_node);
+	next_tsk_sig = rb_entry(next, struct signal_struct, adj_node);
+	return next_tsk_sig->curr_target->group_leader;
 }
 
 static struct task_struct *pick_first_task(void)
 {
 	struct rb_node *left;
+	struct signal_struct *first_tsk_sig;
 
 	spin_lock(&lmk_lock);
 	left = rb_first(&tasks_scoreadj);
@@ -349,11 +353,13 @@ static struct task_struct *pick_first_task(void)
 	if (!left)
 		return NULL;
 
-	return rb_entry(left, struct task_struct, adj_node);
+	first_tsk_sig = rb_entry(left, struct signal_struct, adj_node);
+	return first_tsk_sig->curr_target->group_leader;
 }
 static struct task_struct *pick_last_task(void)
 {
 	struct rb_node *right;
+	struct signal_struct *last_tsk_sig;
 
 	spin_lock(&lmk_lock);
 	right = rb_last(&tasks_scoreadj);
@@ -362,7 +368,8 @@ static struct task_struct *pick_last_task(void)
 	if (!right)
 		return NULL;
 
-	return rb_entry(right, struct task_struct, adj_node);
+	last_tsk_sig = rb_entry(right, struct signal_struct, adj_node);
+	return last_tsk_sig->curr_target->group_leader;
 }
 #endif
 
@@ -474,6 +481,8 @@ module_param_array_named(minfree, lowmem_minfree, uint, &lowmem_minfree_size,
 module_param_array_named(lmk_count, lowmem_per_minfree_count, uint, NULL,
 			 S_IRUGO);
 module_param_named(debug_level, lowmem_debug_level, uint, S_IRUGO | S_IWUSR);
+
+module_param_named(lmkcount, lmk_count, uint, S_IRUGO);
 
 module_init(lowmem_init);
 module_exit(lowmem_exit);
