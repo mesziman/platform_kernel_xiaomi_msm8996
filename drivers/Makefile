@@ -175,3 +175,4 @@ obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 
 # Elliptic UltraSound proximity driver
 obj-y				+= elliptic/
+obj-$(CONFIG_DTS_EAGLE)		+= dts_eagle/
