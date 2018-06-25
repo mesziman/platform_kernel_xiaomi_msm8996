@@ -2164,6 +2164,8 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 		dev_dbg(mdwc->dev, "defer suspend with %d(msecs)\n",
 					mdwc->lpm_to_suspend_delay);
 		pm_wakeup_event(mdwc->dev, mdwc->lpm_to_suspend_delay);
+	} else {
+		pm_relax(mdwc->dev);
 	}
 
 	atomic_set(&dwc->in_lpm, 1);
@@ -2202,6 +2204,8 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 		dbg_event(0xFF, "AlreadyRES", 0);
 		return 0;
 	}
+
+	pm_stay_awake(mdwc->dev);
 
 	/* Vote for TCXO while waking up USB HSPHY */
 	ret = clk_prepare_enable(mdwc->xo_clk);
@@ -3285,6 +3289,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		register_cpu_notifier(&mdwc->dwc3_cpu_notifier);
 
 	device_init_wakeup(mdwc->dev, 1);
+	pm_stay_awake(mdwc->dev);
 
 	if (of_property_read_bool(node, "qcom,disable-dev-mode-pm"))
 		pm_runtime_get_noresume(mdwc->dev);
